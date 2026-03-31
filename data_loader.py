@@ -15,7 +15,7 @@ def get_real_market_params(ticker="QQQ", period="3y"):
         raise ValueError(f"无法获取 {ticker} 的数据，请检查代码或网络。")
         
     # 2. 计算每日对数收益率
-    data['Log_Ret'] = np.log(data['Adj Close'] / data['Adj Close'].shift(1))
+    data['Log_Ret'] = np.log(data['Close'] / data['Close'].shift(1))
     data = data.dropna()
     
     # 3. 计算基础 GBM 参数
@@ -37,7 +37,7 @@ def get_real_market_params(ticker="QQQ", period="3y"):
     sigma_j = jumps.std() if len(jumps) > 1 else 0.01 
     
     # 提取最新价格
-    current_price = float(data['Adj Close'].iloc[-1].item())
+    current_price = float(data['Close'].iloc[-1].item())
     
     print(f"[+] 参数提取成功！")
     print(f"    - 最新价格 (S0): ${current_price:.2f}")
