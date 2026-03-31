@@ -24,7 +24,7 @@ def main():
         market_data = get_real_market_params(ticker=ticker, period="3y")
         SCENARIO_JUMP_PARAMS[ticker] = {
             'lambda': market_data['lambda_j'],
-            'mu_j': market_data['mu_j'],
+            'nu_j': market_data['mu_j'],
             'sigma_j': market_data['sigma_j']
         }
     L = np.linalg.cholesky(returns.cov())
