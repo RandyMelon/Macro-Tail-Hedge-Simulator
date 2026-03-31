@@ -40,7 +40,7 @@ def main():
         for t in range(DAYS):
             idx = np.where(jumps[t,:] > 0)[0]
             for a in idx:
-                jump_m[t,a] = np.exp(np.random.normal(jumps[t,a]*mu_js[a], np.sqrt(jumps[t,a])*sigma_js[a]))
+                jump_m[t,a] = np.exp(np.random.normal(jumps[t,a]*nu_js[a], np.sqrt(jumps[t,a])*sigma_js[a]))
 
         paths = np.cumprod(np.exp(-0.006 + Z) * jump_m, axis=0)
         portfolio_sims[i] = INITIAL_CAPITAL * np.sum(WEIGHTS * paths[-1, :])
