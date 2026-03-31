@@ -3,3 +3,4 @@ pandas
 yfinance
 matplotlib
 scipy
+yfinance>=0.2.0
