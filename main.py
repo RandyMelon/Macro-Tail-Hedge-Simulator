@@ -29,7 +29,7 @@ def main():
         }
     L = np.linalg.cholesky(returns.cov())
     lambdas = np.array([SCENARIO_JUMP_PARAMS[t]['lambda'] for t in TICKERS])
-    mu_js = np.array([SCENARIO_JUMP_PARAMS[t]['mu_j'] for t in TICKERS])
+    nu_js = np.array([SCENARIO_JUMP_PARAMS[t]['nu_j'] for t in TICKERS])
     sigma_js = np.array([SCENARIO_JUMP_PARAMS[t]['sigma_j'] for t in TICKERS])
 
     portfolio_sims = np.zeros(MC_SIMS)
