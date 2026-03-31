@@ -19,14 +19,11 @@ SCENARIO_JUMP_PARAMS = {
 def main():
     returns, r_f = fetch_and_process_data(TICKERS, "2023-01-01", "2026-03-28")
     # 动态获取各个 Ticker 的真实跳跃参数，覆盖掉原本写死的 SCENARIO_JUMP_PARAMS
-    SCENARIO_JUMP_PARAMS = {}
-    for ticker in TICKERS:
-        market_data = get_real_market_params(ticker=ticker, period="3y")
-        SCENARIO_JUMP_PARAMS[ticker] = {
-            'lambda': market_data['lambda_j'],
-            'nu_j': market_data['mu_j'],
-            'sigma_j': market_data['sigma_j']
-        }
+    SCENARIO_JUMP_PARAMS[ticker] = {
+    'lambda': market_data['lambda_j'],
+    'nu_j': market_data['mu_j'],   # <--- 改成 nu_j
+    'sigma_j': market_data['sigma_j']
+}
     L = np.linalg.cholesky(returns.cov())
     lambdas = np.array([SCENARIO_JUMP_PARAMS[t]['lambda'] for t in TICKERS])
     mu_js = np.array([SCENARIO_JUMP_PARAMS[t]['mu_j'] for t in TICKERS])
