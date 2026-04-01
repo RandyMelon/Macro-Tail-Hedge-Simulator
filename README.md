@@ -3,8 +3,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<img width="1460" height="800" alt="image" src="https://github.com/user-attachments/assets/d3061d33-d963-4ade-b262-e9cd9dd7eae9" />
 
----
 
 ## 📌 项目背景 | Project Abstract
 
