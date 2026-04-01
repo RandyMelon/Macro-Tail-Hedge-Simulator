@@ -7,6 +7,28 @@ from scipy.stats import norm
 # --- 核心数据与模拟引擎 ---
 @st.cache_data(ttl=3600)
 def get_market_data(ticker):
+    @st.cache_data(ttl=3600)
+def get_real_iv(ticker, target_K):
+    """尝试从雅虎财经抓取真实的期权隐含波动率 (IV)"""
+    try:
+        tk = yf.Ticker(ticker)
+        exps = tk.options
+        if not exps:
+            return None # 如果没有期权数据（比如外汇），返回 None
+        
+        # 获取最近到期日的期权链
+        opt = tk.option_chain(exps[0])
+        puts = opt.puts
+        
+        # 寻找行权价最接近 10% OTM 的合约
+        idx = (np.abs(puts['strike'] - target_K)).argmin()
+        real_iv = puts.iloc[idx]['impliedVolatility']
+        
+        if real_iv > 0.01: # 确保 IV 数据有效
+            return float(real_iv)
+        return None
+    except:
+        return None
     hist = yf.Ticker(ticker).history(period="3y")
     if hist.empty:
         raise ValueError(f"无法获取 {ticker} 的数据，请检查代码。")
@@ -65,10 +87,22 @@ if st.sidebar.button("🚀 运行实盘压力测试", type="primary"):
             
             terminal_prices = run_simulation(S0, sigma, lam, mu_j, sigma_j, days, iters)
             
-            K = S0 * 0.90
+            # 4. 计算对冲收益 (引入实盘 IV)
+            K = S0 * 0.90 # 10% 虚值看跌期权
             T = days / 252
-            d1 = (np.log(S0/K) + (0.05 + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
-            d2 = d1 - sigma*np.sqrt(T)
+            
+            # 尝试抓取真实市场 IV，如果抓不到（比如停牌或外汇），就用历史波动率 + 波动率风险溢价(3%) 作为安全垫
+            real_iv = get_real_iv(ticker, K)
+            pricing_vol = real_iv if real_iv else (sigma + 0.03) 
+            
+            if real_iv:
+                st.toast(f"✅ 成功抓取 {ticker} 真实市场隐含波动率: {real_iv*100:.2f}%", icon="📈")
+            else:
+                st.toast(f"⚠️ 未抓取到期权链，使用历史波动率定价", icon="🧮")
+
+            # 使用实际定价波动率 (pricing_vol) 进行 B-S 定价
+            d1 = (np.log(S0/K) + (0.05 + 0.5*pricing_vol**2)*T) / (pricing_vol*np.sqrt(T))
+            d2 = d1 - pricing_vol*np.sqrt(T)
             put_price = K * np.exp(-0.05*T) * norm.cdf(-d2) - S0 * norm.cdf(-d1)
             
             naked_pnl = (terminal_prices - S0) / S0 * capital
