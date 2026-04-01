@@ -4,11 +4,28 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
-# --- 核心数据与模拟引擎 ---
+@st.cache_data(ttl=3600)
+def get_real_iv(ticker, target_K):
+    try:
+        tk = yf.Ticker(ticker)
+        exps = tk.options
+        if not exps:
+            return None 
+        
+        opt = tk.option_chain(exps[0])
+        puts = opt.puts
+        
+        idx = (np.abs(puts['strike'] - target_K)).argmin()
+        real_iv = puts.iloc[idx]['impliedVolatility']
+        
+        if real_iv > 0.01: 
+            return float(real_iv)
+        return None
+    except:
+        return None
+
 @st.cache_data(ttl=3600)
 def get_market_data(ticker):
-    @st.cache_data(ttl=3600)
-def get_real_iv(ticker, target_K):
     """尝试从雅虎财经抓取真实的期权隐含波动率 (IV)"""
     try:
         tk = yf.Ticker(ticker)
