@@ -106,8 +106,10 @@ if st.sidebar.button("🚀 启动投资组合压力测试", type="primary"):
             
             with col_a:
                 st.write("### 🧊 资产相关性矩阵")
-                fig_corr, ax_corr = plt.subplots(figsize=(5, 4))
-                sns.heatmap(corr_matrix, annot=True, cmap='RdYlGn', ax=ax_corr, fmt=".2f")
+                fig_corr, ax_corr = plt.subplots(figsize=(6, 5)) # 稍微调大一点
+                sns.heatmap(corr_matrix, annot=True, cmap='RdYlGn', ax=ax_corr, fmt=".2f", square=True)
+                plt.xticks(rotation=45) # 标签倾斜，防止重叠
+                plt.yticks(rotation=0)
                 st.pyplot(fig_corr)
                 
             with col_b:
