@@ -6,21 +6,23 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import norm
 
-# --- 1. 强力数据引擎 ---
+# --- 1. 强力数据引擎 (兼容单/多资产结构) ---
 @st.cache_data(ttl=300)
 def get_portfolio_data(tickers):
     try:
-        # 统一抓取数据
-        data = yf.download(tickers, period="3y", group_by='ticker')
+        # 抓取数据，不再强制 group_by，让 yfinance 自行处理
+        data = yf.download(tickers, period="3y")
         if data.empty:
             return None
         
-        close_df = pd.DataFrame()
-        for t in tickers:
-            if len(tickers) > 1:
-                close_df[t] = data[t]['Close']
-            else:
-                close_df[t] = data['Close']
+        # 核心修复逻辑：智能提取收盘价
+        if len(tickers) > 1:
+            # 多资产时，'Close' 是 DataFrame 的一个 Level
+            close_df = data['Close']
+        else:
+            # 单资产时，'Close' 是其中的一列，强制转为以 Ticker 命名的 DataFrame
+            close_df = data['Close'].to_frame()
+            close_df.columns = tickers
         
         close_df = close_df.dropna()
         returns = np.log(close_df / close_df.shift(1)).dropna()
@@ -29,6 +31,7 @@ def get_portfolio_data(tickers):
         vols = returns.std() * np.sqrt(252)
         corr_matrix = returns.corr()
         
+        # 跳跃参数
         port_ret = returns.mean(axis=1)
         lam = float(len(port_ret[abs(port_ret) > 2 * port_ret.std()]) / 3)
         
@@ -52,6 +55,7 @@ def run_portfolio_simulation(S0, vols, corr_matrix, lam, days, iterations):
         drift = (0.05 - 0.5 * vols.values**2) * T
         diffusion = vols.values[:, np.newaxis] * np.sqrt(T) * z
         
+        # 模拟跳跃
         n_jumps = np.random.poisson(lam * T, iterations)
         jump_impact = np.array([np.sum(np.random.normal(-0.03, 0.05, n_jumps[i])) if n_jumps[i] > 0 else 0 for i in range(iterations)])
         
@@ -61,14 +65,14 @@ def run_portfolio_simulation(S0, vols, corr_matrix, lam, days, iterations):
         st.error(f"❌ 模拟计算环节出错: {str(e)}")
         return None
 
-# --- 3. UI 界面 (已去版本号) ---
+# --- 3. UI 界面 ---
 st.set_page_config(page_title="量化风险管理引擎", layout="wide")
 st.title("🌪️ Macro-Tail-Hedge: Portfolio Simulator")
 st.markdown("多资产联动压力测试系统：利用 **Cholesky Decomposition** 与 **MJD 模型** 捕捉尾部风险。")
 
 st.sidebar.header("⚙️ 资产配置面板")
 t1 = st.sidebar.text_input("资产 1 (必填)", value="QQQ").upper().strip()
-t2 = st.sidebar.text_input("资产 2 (可选)", value="MSFT").upper().strip()
+t2 = st.sidebar.text_input("资产 2 (可选)", value="").upper().strip()
 t3 = st.sidebar.text_input("资产 3 (可选)", value="").upper().strip()
 
 active_tickers = [t for t in [t1, t2, t3] if t]
@@ -79,6 +83,7 @@ weights = []
 if num_active > 0:
     if num_active == 1:
         weights = [1.0]
+        st.sidebar.success(f"已锁定 {active_tickers[0]} 100% 权重")
     elif num_active == 2:
         w1 = st.sidebar.slider(f"{active_tickers[0]} 权重", 0.0, 1.0, 0.5)
         weights = [w1, 1.0 - w1]
@@ -103,6 +108,7 @@ if st.sidebar.button("🚀 启动压力测试", type="primary"):
                 prices_matrix = run_portfolio_simulation(S0, vols, corr_matrix, lam, days, 10000)
                 
                 if prices_matrix is not None:
+                    # 计算 PnL
                     asset_rets = (prices_matrix - S0.values) / S0.values
                     port_rets = asset_rets @ np.array(weights)
                     combined_pnl = port_rets * capital
@@ -119,7 +125,7 @@ if st.sidebar.button("🚀 启动压力测试", type="primary"):
                             plt.xticks(rotation=45); plt.yticks(rotation=0)
                             st.pyplot(fig_corr)
                         else:
-                            st.info("单资产模式下无需计算相关性。")
+                            st.info("💡 单资产模式下无需计算相关性矩阵。")
                             
                     with col_right:
                         st.write("### 📉 组合盈亏分布")
@@ -134,4 +140,4 @@ if st.sidebar.button("🚀 启动压力测试", type="primary"):
                     r2.error(f"**99% CVaR (预期极端亏损)**\n\n### ${abs(cvar_99):,.2f}")
                     r3.info(f"**模拟内最大回撤**\n\n### ${abs(np.min(combined_pnl)):,.2f}")
             else:
-                st.error("❌ 无法抓取数据，请更换标的后重试。")
+                st.error("❌ 无法抓取数据，请检查拼写或尝试更换标的。")
