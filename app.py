@@ -59,10 +59,10 @@ if st.sidebar.button("🚀 运行实盘压力测试", type="primary"):
             S0, sigma, lam, mu_j, sigma_j = get_market_data(ticker)
             
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("最新标的价格", f"${S0:.2f}")
-            col2.metric("历史年化波动率", f"{sigma*100:.2f}%")
-            col3.metric("极端跳跃频率", f"{lam:.1f} 次/年")
-            col4.metric("平均跳跃幅度", f"{mu_j*100:.2f}%")
+            col1.info(f"**最新标的价格**\n\n### ${S0:.2f}")
+            col2.info(f"**历史年化波动率**\n\n### {sigma*100:.2f}%")
+            col3.info(f"**极端跳跃频率**\n\n### {lam:.1f} 次/年")
+            col4.info(f"**平均跳跃幅度**\n\n### {mu_j*100:.2f}%")
             
             terminal_prices = run_simulation(S0, sigma, lam, mu_j, sigma_j, days, iters)
             
