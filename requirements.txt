@@ -4,3 +4,8 @@ yfinance
 matplotlib
 scipy
 yfinance>=0.2.0
+streamlit
+yfinance
+numpy
+matplotlib
+scipy
