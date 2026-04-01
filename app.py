@@ -74,7 +74,26 @@ if st.sidebar.button("🚀 运行实盘压力测试", type="primary"):
             naked_pnl = (terminal_prices - S0) / S0 * capital
             option_payoff = np.maximum(K - terminal_prices, 0)
             hedged_pnl = naked_pnl + (option_payoff - put_price) / S0 * capital
+            naked_pnl = (terminal_prices - S0) / S0 * capital
+            option_payoff = np.maximum(K - terminal_prices, 0)
+            hedged_pnl = naked_pnl + (option_payoff - put_price) / S0 * capital
             
+            # --- 新增：计算 99% VaR 和 CVaR ---
+            percentile = 1  # 关注最差的 1% 尾部
+            naked_var = np.percentile(naked_pnl, percentile)
+            naked_cvar = naked_pnl[naked_pnl <= naked_var].mean()
+            
+            hedged_var = np.percentile(hedged_pnl, percentile)
+            hedged_cvar = hedged_pnl[hedged_pnl <= hedged_var].mean()
+            
+            # ...中间画图部分保持不变...
+            
+            st.markdown("### 📊 机构级尾部风险度量 (99% Confidence Level)")
+            res_col1, res_col2 = st.columns([1, 2])
+            with res_col1:
+                st.error(f"**裸头寸 CVaR (预期极端亏损)**: \n\n### ${abs(naked_cvar):,.2f}")
+                st.success(f"**对冲后 CVaR (截断后亏损)**: \n\n### ${abs(hedged_cvar):,.2f}")
+                st.info(f"**期权对冲总成本**: \n\n### ${((put_price/S0)*capital):,.2f}")
             fig, ax = plt.subplots(figsize=(10, 5))
             ax.hist(naked_pnl, bins=80, alpha=0.5, color='#ff9999', label='Naked Portfolio')
             ax.hist(hedged_pnl, bins=80, alpha=0.5, color='#66b3ff', label='Hedged with 10% OTM Put')
