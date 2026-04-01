@@ -70,6 +70,7 @@ t1 = st.sidebar.text_input("资产 1", value="QQQ").strip().upper()
 t2 = st.sidebar.text_input("资产 2 (可选)", value="MSFT").strip().upper()
 t3 = st.sidebar.text_input("资产 3 (可选)", value="").strip().upper()
 
+# --- 侧边栏权重逻辑修复 ---
 active_tickers = [t for t in [t1, t2, t3] if t]
 num_active = len(active_tickers)
 
@@ -78,5 +79,10 @@ if num_active == 1:
 elif num_active == 2:
     w1 = st.sidebar.slider(f"{active_tickers[0]} 权重", 0.0, 1.0, 0.5)
     weights = np.array([w1, 1.0 - w1])
+elif num_active == 3:
+    w1 = st.sidebar.slider(f"{active_tickers[0]} 权重", 0.0, 1.0, 0.4)
+    w2 = st.sidebar.slider(f"{active_tickers[1]} 权重", 0.0, 1.0 - w1, 0.3)
+    w3 = round(1.0 - w1 - w2, 2)
+    weights = np.array([w1, w2, w3])
 else:
-    w1 = st.sidebar.slider(f"{active_tickers
+    weights = np.array([]) # 防止完全没输入时报错
