@@ -95,7 +95,15 @@ if st.sidebar.button("🚀 运行实盘压力测试", type="primary"):
             T = days / 252
             
             real_iv = get_real_iv(ticker, K)
-            pricing_vol = real_iv if real_iv else (sigma + 0.03) 
+            # 动态模拟波动率偏斜 (Volatility Skew Simulation)
+            if real_iv:
+                pricing_vol = real_iv
+                st.toast(f"✅ 成功抓取 {ticker} 实时 IV: {real_iv*100:.2f}%", icon="📈")
+            else:
+                # 逻辑：压力测试天数越短，瞬时恐慌溢价越高
+                skew_premium = 0.05 if days < 20 else 0.03
+                pricing_vol = sigma + skew_premium
+                st.toast(f"ℹ️ 模式：动态波动率偏斜补偿 (+{skew_premium*100:.0f}bps)", icon="🛡️")
             
             if real_iv:
                 st.toast(f"✅ 成功抓取 {ticker} 真实市场隐含波动率: {real_iv*100:.2f}%", icon="📈")
