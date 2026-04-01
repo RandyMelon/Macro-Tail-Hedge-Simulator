@@ -93,7 +93,7 @@ if st.sidebar.button("🚀 Run Live Stress Test", type="primary"):
                 
                 if terminal_matrix is not None:
                     if num_active == 1:
-                        # ----- Single Asset Mode (Classic) -----
+                        # ----- Single Asset Mode (Classic White Style) -----
                         t = active_tickers[0]
                         st.divider()
                         c1, c2, c3, c4 = st.columns(4)
@@ -118,42 +118,47 @@ if st.sidebar.button("🚀 Run Live Stress Test", type="primary"):
                             st.success(f"**Hedged CVaR**\n\n### ${abs(hedged_pnl[hedged_pnl <= np.percentile(hedged_pnl, 1)].mean()):,.2f}")
                             st.info(f"**Hedging Cost**\n\n### ${((put_px/S0[t])*capital):,.2f}")
                         with col_r:
+                            # --- 白色底色图表 ---
                             fig, ax = plt.subplots(figsize=(8, 4.5))
-                            fig.patch.set_facecolor('#0e1117'); ax.set_facecolor('#0e1117')
-                            ax.hist(naked_pnl, bins=100, alpha=0.4, color='#ff4b4b', label='Naked')
-                            ax.hist(hedged_pnl, bins=100, alpha=0.6, color='#00d4ff', label='Hedged')
-                            ax.axvline(0, color='white', linestyle='--', linewidth=0.8)
-                            ax.tick_params(colors='white'); ax.legend(facecolor='#1e293b', labelcolor='white')
+                            fig.patch.set_facecolor('white')
+                            ax.set_facecolor('white')
+                            ax.hist(naked_pnl, bins=100, alpha=0.4, color='red', label='Naked')
+                            ax.hist(hedged_pnl, bins=100, alpha=0.6, color='dodgerblue', label='Hedged')
+                            ax.axvline(0, color='black', linestyle='--', linewidth=0.8)
+                            ax.set_xlabel("Profit / Loss ($)", color='black')
+                            ax.set_ylabel("Frequency", color='black')
+                            ax.tick_params(colors='black')
+                            ax.legend(loc='upper right')
                             st.pyplot(fig)
                             
                     else:
-                        # ----- Portfolio Mode (Sleek Update) -----
+                        # ----- Portfolio Mode (Sleek White Style) -----
                         st.divider()
                         asset_rets = (terminal_matrix - S0.values) / S0.values
                         port_rets = asset_rets @ np.array(weights)
                         combined_pnl = port_rets * capital
                         cvar_99 = combined_pnl[combined_pnl <= np.percentile(combined_pnl, 1)].mean()
                         
-                        # Use columns for tight layout
                         col_main_l, col_main_r = st.columns([1, 1.2])
-                        
                         with col_main_l:
                             st.markdown("### 🧊 Correlation Matrix")
-                            # High-performance Styled Table instead of Heatmap
                             st.dataframe(
                                 corr_matrix.style.background_gradient(cmap='RdYlGn', axis=None)
                                 .format("{:.2f}"),
                                 use_container_width=True
                             )
-                            st.caption("Green indicates diversification benefit, Red indicates high risk contagion.")
                             
                         with col_main_r:
                             st.markdown("### 📉 PnL Distribution")
+                            # --- 白色底色图表 ---
                             fig_p, ax_p = plt.subplots(figsize=(7, 4))
-                            fig_p.patch.set_facecolor('#0e1117'); ax_p.set_facecolor('#0e1117')
-                            ax_p.hist(combined_pnl, bins=80, color='#00d4ff', alpha=0.7)
-                            ax_p.axvline(np.percentile(combined_pnl, 1), color='red', linestyle='--')
-                            ax_p.tick_params(colors='white')
+                            fig_p.patch.set_facecolor('white')
+                            ax_p.set_facecolor('white')
+                            ax_p.hist(combined_pnl, bins=80, color='dodgerblue', alpha=0.7)
+                            ax_p.axvline(np.percentile(combined_pnl, 1), color='red', linestyle='--', label='99% VaR')
+                            ax_p.set_xlabel("PnL ($)", color='black')
+                            ax_p.tick_params(colors='black')
+                            ax_p.legend()
                             st.pyplot(fig_p)
                         
                         st.divider()
