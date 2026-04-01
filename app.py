@@ -48,7 +48,6 @@ def run_simulation(S0, vols, corr_matrix, lam_dict, mu_j_dict, sigma_j_dict, day
         vol, S0_val = vols[t], S0[t]
         drift = (0.05 - 0.5 * vol**2) * T
         
-        # Apply Macro Shocks
         shock = 0
         if crash_scenario == "2008 Lehman": shock = -0.15
         elif crash_scenario == "2020 COVID": shock = -0.10
@@ -66,7 +65,6 @@ def run_simulation(S0, vols, corr_matrix, lam_dict, mu_j_dict, sigma_j_dict, day
 st.set_page_config(page_title="Quant Risk Engine", layout="wide")
 st.title("🌪️ Macro-Tail-Hedge: Alpha & Risk Engine")
 
-# Sidebar
 st.sidebar.header("⚙️ Configuration")
 t1 = st.sidebar.text_input("Asset 1 (Primary)", value="AAPL").upper().strip()
 t2 = st.sidebar.text_input("Asset 2 (Optional)", value="").upper().strip()
@@ -101,13 +99,11 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                 S0, sigma, corr_matrix, lam_dict, mu_j_dict, sigma_j_dict, hist_returns = result
                 terminal_matrix = run_simulation(S0, sigma, corr_matrix, lam_dict, mu_j_dict, sigma_j_dict, days, 20000, scenario)
                 
-                # ================= UI BIFURCATION (智能分流) =================
-                
                 if num_active == 1:
-                    # --- MODE A: SINGLE ASSET OPTIONS HEDGING ---
+                    # --- MODE A: SINGLE ASSET (保持原有的完美单资产逻辑) ---
                     t = active_tickers[0]
                     st.subheader(f"📊 {t} Tail Risk & Options Hedging Report")
-                    st.caption(f"Scenario Applied: **{scenario}**")
+                    st.caption(f"Macro Scenario Applied: **{scenario}**")
                     
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Latest Price", f"${S0[t]:.2f}")
@@ -115,7 +111,6 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                     c3.metric("Jump Frequency", f"{lam_dict[t]:.1f} / yr")
                     c4.metric("Avg Jump Amplitude", f"{mu_j_dict[t]*100:.2f}%")
                     
-                    # Options Math
                     K, vol_bs, T_opt = S0[t] * 0.90, sigma[t] + 0.03, days / 252
                     d1 = (np.log(S0[t]/K) + (0.05 + 0.5*vol_bs**2)*T_opt) / (vol_bs*np.sqrt(T_opt))
                     d2 = d1 - vol_bs*np.sqrt(T_opt)
@@ -146,39 +141,59 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                         st.pyplot(fig)
                         
                 else:
-                    # --- MODE B: PORTFOLIO ALPHA & CORRELATION ---
-                    st.subheader("🌐 Portfolio Alpha & Correlation Engine")
-                    st.caption(f"Scenario Applied: **{scenario}**")
+                    # --- MODE B: PORTFOLIO DASHBOARD (全面升级的机构面板) ---
+                    st.subheader("🌐 Institutional Portfolio Risk Dashboard")
+                    st.caption(f"Macro Scenario: **{scenario}** | Simulation Paths: 20,000")
                     
                     asset_rets = (terminal_matrix - S0.values) / S0.values
                     port_rets = asset_rets @ weights
                     pnl = port_rets * capital
                     
-                    # Math for Portfolio
-                    weighted_vol = np.sum(sigma.values * weights)
-                    port_vol = np.sqrt(weights.T @ corr_matrix.values @ weights) * np.mean(sigma)
-                    div_benefit = (weighted_vol - port_vol) * 100
-                    
+                    # Core Calculations
                     annual_ret = hist_returns.mean() @ weights * 252
+                    port_vol = np.sqrt(weights.T @ corr_matrix.values @ weights) * np.mean(sigma)
+                    weighted_vol = np.sum(sigma.values * weights)
+                    div_benefit = (weighted_vol - port_vol) * 100
                     sharpe = (annual_ret - 0.04) / port_vol if port_vol > 0 else 0
-                    cvar_99 = pnl[pnl <= np.percentile(pnl, 1)].mean()
                     
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Diversification Benefit", f"+{div_benefit:.2f}%")
-                    c2.metric("Portfolio Sharpe Ratio", f"{sharpe:.2f}")
-                    c3.metric("Tail Risk (99% CVaR)", f"${abs(cvar_99):,.0f}")
+                    var_99 = np.percentile(pnl, 1)
+                    cvar_99 = pnl[pnl <= var_99].mean()
+                    win_rate = (len(pnl[pnl > 0]) / len(pnl)) * 100
+                    max_drawdown = np.min(pnl)
                     
                     st.divider()
-                    col_l, col_r = st.columns([1, 1.2])
+                    
+                    # Row 1: Return & Efficiency Metrics
+                    st.markdown("##### 📈 Return & Efficiency")
+                    r1c1, r1c2, r1c3, r1c4 = st.columns(4)
+                    r1c1.metric("Exp. Annual Return", f"{annual_ret*100:.2f}%")
+                    r1c2.metric("Portfolio Volatility", f"{port_vol*100:.2f}%")
+                    r1c3.metric("Sharpe Ratio", f"{sharpe:.2f}")
+                    r1c4.metric("Diversification Benefit", f"+{div_benefit:.2f}%")
+                    
+                    # Row 2: Tail Risk & Extreme Metrics
+                    st.markdown("##### ⚠️ Tail Risk & Simulation Extremes")
+                    r2c1, r2c2, r2c3, r2c4 = st.columns(4)
+                    r2c1.metric("Simulated Win Rate", f"{win_rate:.1f}%")
+                    r2c2.metric("99% VaR (Threshold)", f"${abs(var_99):,.0f}")
+                    r2c3.metric("99% CVaR (Expected)", f"${abs(cvar_99):,.0f}")
+                    r2c4.metric("Max Simulated Drawdown", f"${abs(max_drawdown):,.0f}")
+                    
+                    st.divider()
+                    
+                    # Row 3: Charts & Tables
+                    col_l, col_r = st.columns([1, 1.5])
                     with col_l:
-                        st.markdown("##### Correlation Matrix")
+                        st.markdown("##### 🧊 Asset Correlation Matrix")
                         st.dataframe(corr_matrix.style.background_gradient(cmap='RdYlGn', axis=None).format("{:.2f}"), use_container_width=True)
+                        st.info("💡 **Green** indicates strong diversification. **Red** warns of high contagion risk during market crashes.")
                     with col_r:
-                        fig, ax = plt.subplots(figsize=(8, 4.5))
+                        st.markdown("##### 📉 Portfolio PnL Distribution (White)")
+                        fig, ax = plt.subplots(figsize=(8, 4.2))
                         fig.patch.set_facecolor('white'); ax.set_facecolor('white')
                         ax.hist(pnl, bins=100, color='dodgerblue', alpha=0.8)
-                        ax.axvline(np.percentile(pnl, 1), color='red', linestyle='--', label='99% VaR')
-                        ax.set_title(f"Portfolio PnL Distribution ({days} Days)", color='black')
-                        ax.tick_params(colors='black')
+                        ax.axvline(var_99, color='red', linestyle='--', label='99% VaR Threshold')
+                        ax.set_title(f"Projected PnL in {days} Days", color='black', fontsize=11)
+                        ax.tick_params(colors='black', labelsize=9)
                         ax.legend()
                         st.pyplot(fig)
