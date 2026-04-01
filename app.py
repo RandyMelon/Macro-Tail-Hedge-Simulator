@@ -185,7 +185,7 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                     col_l, col_r = st.columns([1, 1.5])
                     with col_l:
                         st.markdown("##### 🧊 Asset Correlation Matrix")
-                        st.dataframe(corr_matrix.style.background_gradient(cmap='RdYlGn', axis=None).format("{:.2f}"), use_container_width=True)
+                        st.dataframe(corr_matrix.style.background_gradient(cmap='RdYlGn_r', axis=None, vmin=-1.0, vmax=1.0).format("{:.2f}"), use_container_width=True)
                         st.info("💡 **Green** indicates strong diversification. **Red** warns of high contagion risk during market crashes.")
                     with col_r:
                         st.markdown("##### 📉 Portfolio PnL Distribution (White)")
