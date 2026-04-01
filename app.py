@@ -77,8 +77,8 @@ if st.sidebar.button("🚀 运行实盘压力测试", type="primary"):
             hedged_pnl = naked_pnl + (option_payoff - put_price) / S0 * capital
             
             fig, ax = plt.subplots(figsize=(10, 5))
-            ax.hist(naked_pnl, bins=80, alpha=0.5, color='#ff9999', label='Naked (裸头寸)')
-            ax.hist(hedged_pnl, bins=80, alpha=0.5, color='#66b3ff', label='Hedged (10% OTM Put)')
+            ax.hist(naked_pnl, bins=80, alpha=0.5, color='#ff9999', label='Naked Portfolio')
+            ax.hist(hedged_pnl, bins=80, alpha=0.5, color='#66b3ff', label='Hedged with 10% OTM Put')
             ax.axvline(x=0, color='black', linestyle='--', linewidth=1)
             ax.set_title(f"Portfolio PnL Distribution ({ticker} - {days} Days)", fontsize=14)
             ax.set_xlabel("Profit / Loss ($)")
