@@ -3,7 +3,6 @@ import yfinance as yf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy.stats import norm
 
 # --- 1. Data Engine ---
@@ -37,7 +36,7 @@ def get_market_data(tickers):
 def run_simulation(S0, vols, corr_matrix, lam_dict, mu_j_dict, sigma_j_dict, days, iterations):
     try:
         num_assets, iters = len(S0), iterations
-        T, dt = days / 252, 1 / 252
+        T = days / 252
         terminal_prices = np.zeros((iters, num_assets))
         if num_assets > 1:
             L = np.linalg.cholesky(corr_matrix.values)
@@ -57,20 +56,18 @@ def run_simulation(S0, vols, corr_matrix, lam_dict, mu_j_dict, sigma_j_dict, day
 
 # --- 3. UI Configuration ---
 st.set_page_config(page_title="Quant Risk Engine", layout="wide")
-
 st.title("🌪️ Macro-Tail-Hedge: Portfolio Simulator")
-st.markdown("MJD Monte Carlo stress testing and options hedging simulation based on real market data.")
+st.markdown("MJD Monte Carlo stress testing and portfolio risk aggregation.")
 
 # Sidebar
-st.sidebar.header("⚙️ Asset Configuration")
-t1 = st.sidebar.text_input("Asset 1 (Primary)", value="AAPL").upper().strip()
-t2 = st.sidebar.text_input("Asset 2 (Optional)", value="").upper().strip()
-t3 = st.sidebar.text_input("Asset 3 (Optional)", value="").upper().strip()
+st.sidebar.header("⚙️ Configuration")
+t1 = st.sidebar.text_input("Asset 1", value="AAPL").upper().strip()
+t2 = st.sidebar.text_input("Asset 2", value="MSFT").upper().strip()
+t3 = st.sidebar.text_input("Asset 3", value="").upper().strip()
 
 active_tickers = [t for t in [t1, t2, t3] if t]
 num_active = len(active_tickers)
 
-# Dynamic Weighting
 if num_active > 0:
     if num_active == 1: weights = [1.0]
     elif num_active == 2:
@@ -82,13 +79,13 @@ if num_active > 0:
         weights = [w1, w2, round(1.0 - w1 - w2, 2)]
 
 capital = st.sidebar.number_input("Portfolio Size ($)", value=100000)
-days = st.sidebar.slider("Stress Test Horizon (Days)", 5, 60, 30)
+days = st.sidebar.slider("Test Horizon (Days)", 5, 60, 30)
 
 if st.sidebar.button("🚀 Run Live Stress Test", type="primary"):
     if not active_tickers:
         st.warning("Please enter a ticker.")
     else:
-        with st.spinner("Processing Market Dynamics..."):
+        with st.spinner("Processing Matrix Operations..."):
             result = get_market_data(active_tickers)
             if result:
                 S0, sigma, corr_matrix, lam_dict, mu_j_dict, sigma_j_dict, tickers = result
@@ -96,71 +93,71 @@ if st.sidebar.button("🚀 Run Live Stress Test", type="primary"):
                 
                 if terminal_matrix is not None:
                     if num_active == 1:
-                        # ----- Single Asset Mode -----
+                        # ----- Single Asset Mode (Classic) -----
                         t = active_tickers[0]
                         st.divider()
                         c1, c2, c3, c4 = st.columns(4)
                         c1.info(f"**Latest Price**\n\n### ${S0[t]:.2f}")
                         c2.info(f"**Annual Volatility**\n\n### {sigma[t]*100:.2f}%")
-                        c3.info(f"**Jump Frequency**\n\n### {lam_dict[t]:.1f} times/y")
+                        c3.info(f"**Jump Frequency**\n\n### {lam_dict[t]:.1f}/y")
                         c4.info(f"**Avg Jump Amp**\n\n### {mu_j_dict[t]*100:.2f}%")
                         
-                        # Math for Hedging
                         K, vol_bs, T_opt = S0[t] * 0.90, sigma[t] + 0.03, days / 252
                         d1 = (np.log(S0[t]/K) + (0.05 + 0.5*vol_bs**2)*T_opt) / (vol_bs*np.sqrt(T_opt))
                         d2 = d1 - vol_bs*np.sqrt(T_opt)
                         put_px = K * np.exp(-0.05*T_opt) * norm.cdf(-d2) - S0[t] * norm.cdf(-d1)
                         
-                        prices = terminal_matrix[:, 0]
-                        naked_pnl = (prices - S0[t]) / S0[t] * capital
-                        hedged_pnl = naked_pnl + (np.maximum(K - prices, 0) - put_px) / S0[t] * capital
+                        p = terminal_matrix[:, 0]
+                        naked_pnl = (p - S0[t]) / S0[t] * capital
+                        hedged_pnl = naked_pnl + (np.maximum(K - p, 0) - put_px) / S0[t] * capital
                         
-                        # Layout Adjustment
-                        st.markdown(f"### 📊 {t} Tail Risk Report (99% CVaR)")
+                        st.markdown(f"### 📊 {t} Risk Report (99% CVaR)")
                         col_l, col_r = st.columns([1, 2])
                         with col_l:
                             st.error(f"**Naked CVaR**\n\n### ${abs(naked_pnl[naked_pnl <= np.percentile(naked_pnl, 1)].mean()):,.2f}")
                             st.success(f"**Hedged CVaR**\n\n### ${abs(hedged_pnl[hedged_pnl <= np.percentile(hedged_pnl, 1)].mean()):,.2f}")
                             st.info(f"**Hedging Cost**\n\n### ${((put_px/S0[t])*capital):,.2f}")
-                            
                         with col_r:
-                            fig, ax = plt.subplots(figsize=(8, 4.8)) # Adjusted size
-                            fig.patch.set_facecolor('#0e1117')
-                            ax.set_facecolor('#0e1117')
-                            ax.hist(naked_pnl, bins=100, alpha=0.4, color='#ff4b4b', label='Naked Position')
-                            ax.hist(hedged_pnl, bins=100, alpha=0.6, color='#00d4ff', label='Hedged (OTM Put)')
+                            fig, ax = plt.subplots(figsize=(8, 4.5))
+                            fig.patch.set_facecolor('#0e1117'); ax.set_facecolor('#0e1117')
+                            ax.hist(naked_pnl, bins=100, alpha=0.4, color='#ff4b4b', label='Naked')
+                            ax.hist(hedged_pnl, bins=100, alpha=0.6, color='#00d4ff', label='Hedged')
                             ax.axvline(0, color='white', linestyle='--', linewidth=0.8)
-                            ax.set_title(f"PnL Distribution ({days} Days)", color='white', fontsize=12)
-                            ax.tick_params(colors='white', labelsize=10)
-                            for spine in ax.spines.values(): spine.set_color('#334155')
-                            ax.legend(facecolor='#1e293b', labelcolor='white')
+                            ax.tick_params(colors='white'); ax.legend(facecolor='#1e293b', labelcolor='white')
                             st.pyplot(fig)
                             
                     else:
-                        # ----- Portfolio Mode -----
+                        # ----- Portfolio Mode (Sleek Update) -----
                         st.divider()
                         asset_rets = (terminal_matrix - S0.values) / S0.values
                         port_rets = asset_rets @ np.array(weights)
                         combined_pnl = port_rets * capital
                         cvar_99 = combined_pnl[combined_pnl <= np.percentile(combined_pnl, 1)].mean()
                         
-                        st.markdown("### 🌐 Portfolio Risk Aggregation")
-                        col_a, col_b = st.columns([1, 1])
-                        with col_a:
-                            fig_corr, ax_corr = plt.subplots(figsize=(5, 4))
-                            sns.heatmap(corr_matrix, annot=True, cmap='RdYlGn', ax=ax_corr, square=True)
-                            ax_corr.set_title("Correlation Matrix", fontsize=10)
-                            st.pyplot(fig_corr)
+                        # Use columns for tight layout
+                        col_main_l, col_main_r = st.columns([1, 1.2])
+                        
+                        with col_main_l:
+                            st.markdown("### 🧊 Correlation Matrix")
+                            # High-performance Styled Table instead of Heatmap
+                            st.dataframe(
+                                corr_matrix.style.background_gradient(cmap='RdYlGn', axis=None)
+                                .format("{:.2f}"),
+                                use_container_width=True
+                            )
+                            st.caption("Green indicates diversification benefit, Red indicates high risk contagion.")
                             
-                        with col_b:
-                            fig_hist, ax_hist = plt.subplots(figsize=(6, 4.5))
-                            ax_hist.hist(combined_pnl, bins=80, color='#00d4ff', alpha=0.7)
-                            ax_hist.axvline(np.percentile(combined_pnl, 1), color='red', linestyle='--')
-                            ax_hist.set_title("Portfolio PnL Distribution", fontsize=10)
-                            st.pyplot(fig_hist)
+                        with col_main_r:
+                            st.markdown("### 📉 PnL Distribution")
+                            fig_p, ax_p = plt.subplots(figsize=(7, 4))
+                            fig_p.patch.set_facecolor('#0e1117'); ax_p.set_facecolor('#0e1117')
+                            ax_p.hist(combined_pnl, bins=80, color='#00d4ff', alpha=0.7)
+                            ax_p.axvline(np.percentile(combined_pnl, 1), color='red', linestyle='--')
+                            ax_p.tick_params(colors='white')
+                            st.pyplot(fig_p)
                         
                         st.divider()
                         r1, r2, r3 = st.columns(3)
                         r1.metric("Active Assets", num_active)
                         r2.error(f"**Portfolio 99% CVaR**\n\n### ${abs(cvar_99):,.2f}")
-                        r3.info(f"**Max Potential Drawdown**\n\n### ${abs(np.min(combined_pnl)):,.2f}")
+                        r3.info(f"**Max Simulated Drawdown**\n\n### ${abs(np.min(combined_pnl)):,.2f}")
