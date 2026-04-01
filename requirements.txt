@@ -9,3 +9,4 @@ yfinance
 numpy
 matplotlib
 scipy
+seaborn
