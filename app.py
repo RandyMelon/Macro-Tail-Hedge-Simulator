@@ -86,14 +86,15 @@ if st.sidebar.button("🚀 运行实盘压力测试", type="primary"):
             hedged_var = np.percentile(hedged_pnl, percentile)
             hedged_cvar = hedged_pnl[hedged_pnl <= hedged_var].mean()
             
-            # ...中间画图部分保持不变...
+            # 5. 计算 99% 尾部风险 (CVaR)
+            percentile = 1  
+            naked_var = np.percentile(naked_pnl, percentile)
+            naked_cvar = naked_pnl[naked_pnl <= naked_var].mean()
             
-            st.markdown("### 📊 机构级尾部风险度量 (99% Confidence Level)")
-            res_col1, res_col2 = st.columns([1, 2])
-            with res_col1:
-                st.error(f"**裸头寸 CVaR (预期极端亏损)**: \n\n### ${abs(naked_cvar):,.2f}")
-                st.success(f"**对冲后 CVaR (截断后亏损)**: \n\n### ${abs(hedged_cvar):,.2f}")
-                st.info(f"**期权对冲总成本**: \n\n### ${((put_price/S0)*capital):,.2f}")
+            hedged_var = np.percentile(hedged_pnl, percentile)
+            hedged_cvar = hedged_pnl[hedged_pnl <= hedged_var].mean()
+
+            # 6. 绘制图表
             fig, ax = plt.subplots(figsize=(10, 5))
             ax.hist(naked_pnl, bins=80, alpha=0.5, color='#ff9999', label='Naked Portfolio')
             ax.hist(hedged_pnl, bins=80, alpha=0.5, color='#66b3ff', label='Hedged with 10% OTM Put')
@@ -103,15 +104,21 @@ if st.sidebar.button("🚀 运行实盘压力测试", type="primary"):
             ax.set_ylabel("Frequency")
             ax.legend()
             
-            st.markdown("### 📊 压力测试结果报告")
-            res_col1, res_col2 = st.columns([1, 2])
+            # 7. 渲染完美排版的 UI
+            st.markdown("### 📊 机构级尾部风险报告 (99% CVaR)")
+            res_col1, res_col2 = st.columns([1, 2]) # 左边占1份，右边占2份
+            
             with res_col1:
-                st.error(f"**最大裸头寸回撤**: \n\n${abs(min(naked_pnl)):,.2f}")
-                st.success(f"**对冲后最大回撤**: \n\n${abs(min(hedged_pnl)):,.2f}")
-                st.info(f"**期权对冲总成本**: \n\n${(put_price/S0)*capital:,.2f}")
+                st.error(f"**裸头寸预期极寒亏损 (Naked CVaR)**: \n\n### ${abs(naked_cvar):,.2f}")
+                st.success(f"**对冲后预期亏损 (Hedged CVaR)**: \n\n### ${abs(hedged_cvar):,.2f}")
+                st.info(f"**期权对冲总成本 (Hedging Cost)**: \n\n### ${((put_price/S0)*capital):,.2f}")
+                
             with res_col2:
-                st.pyplot(fig)
+                st.pyplot(fig) # 直接把图表严丝合缝地塞进右边
+                
+        except ValueError as ve:
+            st.error(f"⚠️ 数据获取失败: {ve}")
         except Exception as e:
-            st.error(f"运行出错: {e}")
+            st.error(f"❌ 发生未知错误: {e}")
 else:
-    st.info("👈 请在左侧配置参数，并点击运行按钮启动引擎。")
+    st.info("👈 请在左侧侧边栏配置参数，并点击运行按钮启动引擎。")
