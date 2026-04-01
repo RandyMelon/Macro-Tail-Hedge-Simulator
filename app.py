@@ -177,18 +177,47 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                         opt_res = sco.minimize(neg_sharpe, init_guess, method='SLSQP', bounds=bnds, constraints=cons)
                         weights = np.array(opt_res.x)
                         
-                    elif strategy == "Risk Parity (Bridgewater)":
+                   elif strategy == "Risk Parity (Bridgewater)":
                         def risk_parity_obj(w):
-                            # 计算组合方差
+                            # 1. 计算组合方差和边际风险贡献
                             port_var = np.dot(w.T, np.dot(cov_matrix, w))
-                            # 计算每个资产的边际风险贡献度 (Marginal Risk Contribution)
-                            mrc = np.dot(cov_matrix, w)
+                            mrc = np.dot(cov_matrix, w) / np.sqrt(port_var)
+                            # 2. 计算每个资产的风险贡献度 (RC)
                             risk_contribs = w * mrc
-                            # 目标是让每个资产的风险贡献等于总风险的 1/N
-                            target_risk = port_var / num_active
-                            # 最小化风险贡献与目标值的平方差
-                            return np.sum(np.square(risk_contribs - target_risk))
+                            # 3. 目标：最小化 RC 之间的差异（让每个 RC 趋近于 总风险 / N）
+                            target_risk = np.sqrt(port_var) / num_active
+                            # 放大目标函数 (乘以 1e6)，强迫优化器移动
+                            return np.sum(np.square(risk_contribs - target_risk)) * 1e6
                         
+                        # 尝试不同的初始值，确保跳出局部最优
+                        init_guess = num_active * [1. / num_active]
+                        opt_res = sco.minimize(risk_parity_obj, init_guess, 
+                                               method='SLSQP', 
+                                               bounds=bnds, 
+                                               constraints=cons,
+                                               options={'ftol': 1e-12}) # 提高精度要求
+                        weights = np.array(opt_res.x)
+
+                    # 计算最终的风险贡献，用于验证
+                    final_port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+                    final_rc = (weights * np.dot(cov_matrix, weights)) / final_port_vol
+                    # 归一化 RC，方便展示
+                    rc_pct = (final_rc / np.sum(final_rc)) * 100
+                        
+                        # 尝试不同的初始值，确保跳出局部最优
+                        init_guess = num_active * [1. / num_active]
+                        opt_res = sco.minimize(risk_parity_obj, init_guess, 
+                                               method='SLSQP', 
+                                               bounds=bnds, 
+                                               constraints=cons,
+                                               options={'ftol': 1e-12}) # 提高精度要求
+                        weights = np.array(opt_res.x)
+
+                    # 计算最终的风险贡献，用于验证
+                    final_port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+                    final_rc = (weights * np.dot(cov_matrix, weights)) / final_port_vol
+                    # 归一化 RC，方便展示
+                    rc_pct = (final_rc / np.sum(final_rc)) * 100
                         # 风险平价优化对初始值比较敏感，用 SLSQP 求解
                         opt_res = sco.minimize(risk_parity_obj, init_guess, method='SLSQP', bounds=bnds, constraints=cons)
                         weights = np.array(opt_res.x)
@@ -249,6 +278,18 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                     
                     st.markdown("##### ⚠️ Tail Risk & Simulation Extremes")
                     r2c1, r2c2, r2c3, r2c4 = st.columns(4)
+                    # 增加风险贡献对比条
+                    st.write("")
+                    st.markdown("##### ⚖️ Risk Contribution Analysis (验证是否配平)")
+                    rc_cols = st.columns(num_active)
+                    for idx, t in enumerate(active_tickers):
+                        # 如果是风险平价，这里的数值应该都接近 1/N
+                        rc_val = rc_pct[idx]
+                        rc_cols[idx].progress(int(rc_val))
+                        rc_cols[idx].caption(f"{t} Risk Share: {rc_val:.1f}%")
+                    
+                    if strategy == "Risk Parity (Bridgewater)":
+                        st.caption("💡 在风险平价模式下，上方所有资产的 Risk Share 进度条长度应几乎相等。")
                     r2c1.metric("Simulated Win Rate", f"{(len(pnl[pnl > 0]) / len(pnl)) * 100:.1f}%")
                     r2c2.metric("99% VaR (Threshold)", f"${abs(var_99):,.0f}")
                     r2c3.metric("99% CVaR (Expected)", f"${abs(cvar_99):,.0f}")
