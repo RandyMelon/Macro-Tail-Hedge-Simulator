@@ -37,7 +37,6 @@ def get_market_data(tickers):
         
         for t in tickers:
             delta = close_df[t].diff()
-            # 修复：使用 Wilder's Smoothing Method
             gain = (delta.where(delta > 0, 0)).ewm(alpha=1/14, adjust=False).mean()
             loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/14, adjust=False).mean()
             rs = gain / loss
@@ -127,7 +126,6 @@ active_tickers = [t for t in [t1, t2, t3] if t]
 num_active = len(active_tickers)
 
 st.sidebar.markdown("---")
-# 策略选择器
 strategy = st.sidebar.radio(
     "🧠 Portfolio Allocation Strategy",
     ["Manual Slider", "Max Sharpe (Markowitz)", "Risk Parity (Bridgewater)"]
@@ -162,7 +160,8 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                 S0, sigma, corr_matrix, cov_matrix, lam_dict, mu_j_dict, sigma_j_dict, hist_returns, rsi_dict, boll_dict, vol_dict, alpha_boost = result
                 
                 weights = manual_weights
-                # ================= 核心：多重优化器 =================
+                
+                # ================= 优化器引擎 =================
                 if num_active > 1 and strategy != "Manual Slider":
                     bnds = tuple((0, 1) for _ in range(num_active))
                     cons = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
@@ -177,82 +176,57 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                         opt_res = sco.minimize(neg_sharpe, init_guess, method='SLSQP', bounds=bnds, constraints=cons)
                         weights = np.array(opt_res.x)
                         
-                   elif strategy == "Risk Parity (Bridgewater)":
+                    elif strategy == "Risk Parity (Bridgewater)":
                         def risk_parity_obj(w):
-                            # 1. 计算组合方差和边际风险贡献
                             port_var = np.dot(w.T, np.dot(cov_matrix, w))
                             mrc = np.dot(cov_matrix, w) / np.sqrt(port_var)
-                            # 2. 计算每个资产的风险贡献度 (RC)
                             risk_contribs = w * mrc
-                            # 3. 目标：最小化 RC 之间的差异（让每个 RC 趋近于 总风险 / N）
                             target_risk = np.sqrt(port_var) / num_active
-                            # 放大目标函数 (乘以 1e6)，强迫优化器移动
-                            return np.sum(np.square(risk_contribs - target_risk)) * 1e6
+                            return np.sum(np.square(risk_contribs - target_risk)) * 1e6 # 放大精度迫使移动
                         
-                        # 尝试不同的初始值，确保跳出局部最优
-                        init_guess = num_active * [1. / num_active]
-                        opt_res = sco.minimize(risk_parity_obj, init_guess, 
-                                               method='SLSQP', 
-                                               bounds=bnds, 
-                                               constraints=cons,
-                                               options={'ftol': 1e-12}) # 提高精度要求
-                        weights = np.array(opt_res.x)
-
-                    # 计算最终的风险贡献，用于验证
-                    final_port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-                    final_rc = (weights * np.dot(cov_matrix, weights)) / final_port_vol
-                    # 归一化 RC，方便展示
-                    rc_pct = (final_rc / np.sum(final_rc)) * 100
-                        
-                        # 尝试不同的初始值，确保跳出局部最优
-                        init_guess = num_active * [1. / num_active]
-                        opt_res = sco.minimize(risk_parity_obj, init_guess, 
-                                               method='SLSQP', 
-                                               bounds=bnds, 
-                                               constraints=cons,
-                                               options={'ftol': 1e-12}) # 提高精度要求
-                        weights = np.array(opt_res.x)
-
-                    # 计算最终的风险贡献，用于验证
-                    final_port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-                    final_rc = (weights * np.dot(cov_matrix, weights)) / final_port_vol
-                    # 归一化 RC，方便展示
-                    rc_pct = (final_rc / np.sum(final_rc)) * 100
-                        # 风险平价优化对初始值比较敏感，用 SLSQP 求解
-                        opt_res = sco.minimize(risk_parity_obj, init_guess, method='SLSQP', bounds=bnds, constraints=cons)
+                        opt_res = sco.minimize(risk_parity_obj, init_guess, method='SLSQP', bounds=bnds, constraints=cons, options={'ftol': 1e-12})
                         weights = np.array(opt_res.x)
 
                     weight_strs = [f"**{t}**: {w*100:.1f}%" for t, w in zip(active_tickers, weights)]
                     color = "green" if strategy == "Max Sharpe (Markowitz)" else "blue"
                     st.markdown(f"<div style='padding:10px;border-radius:5px;background-color:rgba(0,100,250,0.1); border-left: 5px solid {color};'>🤖 <b>{strategy} Optimal Allocation:</b> " + " | ".join(weight_strs) + "</div>", unsafe_allow_html=True)
-                    st.write("") # 留白
-
-                elif num_active == 1:
-                    weights = np.array([1.0])
+                    st.write("") 
 
                 terminal_matrix = run_simulation(S0, sigma, corr_matrix, lam_dict, mu_j_dict, sigma_j_dict, alpha_boost, days, 20000, scenario)
                 
-                # ================= Alpha 信号监控台 =================
+                # ================= Alpha 雷达 =================
                 st.markdown("##### 📡 Volume-Price Alpha Signals")
                 cols = st.columns(num_active)
                 for i, t in enumerate(active_tickers):
                     with cols[i]:
                         vol_str = f"{(vol_dict[t]*100):.0f}% of 20d Avg"
                         vol_color = "🔴" if vol_dict[t] > 1.2 else ("🟢" if vol_dict[t] < 0.8 else "⚪")
-                        st.info(f"**{t} Analytics:**\n\n"
-                                f"**RSI (14):** {rsi_dict[t]:.1f}\n\n"
-                                f"**BOLL:** {boll_dict[t]}\n\n"
-                                f"**Volume:** {vol_str} {vol_color}\n\n"
-                                f"**Action:** {alpha_boost[t]['note']}")
+                        st.info(f"**{t} Analytics:**\n\n**RSI:** {rsi_dict[t]:.1f}\n\n**BOLL:** {boll_dict[t]}\n\n**Vol:** {vol_str} {vol_color}\n\n**Act:** {alpha_boost[t]['note']}")
                 
                 # ================= UI 渲染部分 =================
                 if num_active == 1:
                     t = active_tickers[0]
                     st.subheader(f"📊 {t} Tail Risk Report")
-                    # ... [此处保留单资产UI，与V6.2完全一致，为节约篇幅简化展示] ...
                     prices = terminal_matrix[:, 0]
                     naked_pnl = (prices - S0[t]) / S0[t] * capital
-                    st.error(f"**Naked CVaR (1%)**\n\n### ${abs(naked_pnl[naked_pnl <= np.percentile(naked_pnl, 1)].mean()):,.0f}")
+                    
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Latest Price", f"${S0[t]:.2f}")
+                    c2.metric("Annual Volatility", f"{sigma[t]*100:.2f}%")
+                    c3.metric("Jump Frequency", f"{lam_dict[t]:.1f} / yr")
+                    c4.metric("Avg Jump Amplitude", f"{mu_j_dict[t]*100:.2f}%")
+                    
+                    st.divider()
+                    col_l, col_r = st.columns([1, 2])
+                    with col_l:
+                        st.error(f"**Naked CVaR (1%)**\n\n### ${abs(naked_pnl[naked_pnl <= np.percentile(naked_pnl, 1)].mean()):,.0f}")
+                    with col_r:
+                        fig, ax = plt.subplots(figsize=(8, 4.5))
+                        fig.patch.set_facecolor('white'); ax.set_facecolor('white')
+                        ax.hist(naked_pnl, bins=100, alpha=0.4, color='red', label='Naked Position')
+                        ax.axvline(0, color='black', linestyle='--', linewidth=0.8)
+                        ax.legend()
+                        st.pyplot(fig)
                 else:
                     st.subheader("🌐 Institutional Risk Dashboard")
                     
@@ -276,20 +250,24 @@ if st.sidebar.button("🚀 Run Live Analysis", type="primary"):
                     r1c3.metric("Sharpe Ratio", f"{sharpe:.2f}")
                     r1c4.metric("Diversification Benefit", f"+{div_benefit:.2f}%")
                     
-                    st.markdown("##### ⚠️ Tail Risk & Simulation Extremes")
-                    r2c1, r2c2, r2c3, r2c4 = st.columns(4)
-                    # 增加风险贡献对比条
+                    # ================= 新增：风险贡献 (Risk Contribution) 验证条 =================
                     st.write("")
-                    st.markdown("##### ⚖️ Risk Contribution Analysis (验证是否配平)")
+                    st.markdown("##### ⚖️ Risk Contribution (RC) Analysis")
+                    final_rc = (weights * np.dot(cov_matrix.values, weights)) / port_vol if port_vol > 0 else np.zeros(num_active)
+                    rc_pct = (final_rc / np.sum(final_rc)) * 100 if np.sum(final_rc) > 0 else np.zeros(num_active)
+                    
                     rc_cols = st.columns(num_active)
                     for idx, t in enumerate(active_tickers):
-                        # 如果是风险平价，这里的数值应该都接近 1/N
                         rc_val = rc_pct[idx]
-                        rc_cols[idx].progress(int(rc_val))
-                        rc_cols[idx].caption(f"{t} Risk Share: {rc_val:.1f}%")
-                    
+                        rc_cols[idx].progress(int(rc_val) / 100.0) 
+                        rc_cols[idx].caption(f"**{t}** Share of Total Risk: {rc_val:.1f}%")
+                        
                     if strategy == "Risk Parity (Bridgewater)":
-                        st.caption("💡 在风险平价模式下，上方所有资产的 Risk Share 进度条长度应几乎相等。")
+                        st.caption("💡 **Risk Parity Success:** 进度条应该接近均等。高权重给低波资产，低权重给高波资产。")
+                    
+                    st.divider()
+                    st.markdown("##### ⚠️ Tail Risk & Simulation Extremes")
+                    r2c1, r2c2, r2c3, r2c4 = st.columns(4)
                     r2c1.metric("Simulated Win Rate", f"{(len(pnl[pnl > 0]) / len(pnl)) * 100:.1f}%")
                     r2c2.metric("99% VaR (Threshold)", f"${abs(var_99):,.0f}")
                     r2c3.metric("99% CVaR (Expected)", f"${abs(cvar_99):,.0f}")
