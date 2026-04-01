@@ -39,8 +39,9 @@ def get_market_data(tickers):
         for t in tickers:
             # 1. RSI
             delta = close_df[t].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            # 使用 Wilder's Smoothing Method (与 TradingView 完全对齐)
+            gain = (delta.where(delta > 0, 0)).ewm(alpha=1/14, adjust=False).mean()
+            loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/14, adjust=False).mean()
             rs = gain / loss
             latest_rsi = (100 - (100 / (1 + rs))).iloc[-1]
             rsi_dict[t] = latest_rsi
